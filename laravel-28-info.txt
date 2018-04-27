@@ -1,0 +1,119 @@
+LARAVEL 27 - OD ZERA DO WEBDEVA
+
+1. pore pobraniu z repozytorium lub kopiowaniu instalujemy
+composer install
+
+2. Zaczynamy od wygenerowania modelu
+-m - flaga tworzy migracje
+php artisan make:model Roles
+
+3. Tworzymy seedera pod migracje
+php artisan make:seed RolesTableSeeder
+
+4 Uruchamiamy migracje
+php artisan migrate
+
+5. uruchamiamy pojedynczego seedera
+--class -- flaga ze pojedynczego seedera
+php artisan db:seed --class=RolesTableSeeder
+
+jesli cos nie tak to usuwamy zawartosc recznie z bazy  i 
+
+php artisan migrate:refresh --seed
+i
+php artisan db:seed --class=RolesTableSeeder
+
+-------------------------
+
+6. Tworzymy nowy model do piwotu czyli relacji wiele do wielu
+php artisan make:model RolesHasUser -m
+
+		// tworzymy tabele
+        Schema::create('roles_has_users', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('user_id')->unsigned();
+            $table->foreign('user_id')->references('id')->on('users');
+            $table->integer('roles_id')->unsigned();
+            $table->timestamps();
+        });
+        // update table
+        Schema::table('roles_has_users', function (Blueprint $table) {
+            $table->foreign('roles_id')->references('id')->on('roles');
+        });
+7. Tworzy relacje belongsToMany (należy do wielu)
+
+public function roles(){
+	return $this->belognsToMany(Roles::class, 'roles_has_users', 'users_id', 'roles_id')->withTimestamps();	
+}
+- function roles() - nazwa roles to nazwa tabeli z ktorej powiazany jest user - przez tabele posredniczaca
+- Roles::class - wskazujemy na model
+- 'roles_has_users' - tabela pośredniczące - piwot
+- 'users_id', 'roles_id' - klucze po ktorych nastepuje powiazanie (klucze obce)
+
+8. dodajemy do UserTableSeeder informacje o rolach
+
+// 1 sposob na szytwno dodajemy id roli $user->roles()->attach(3);
+        
+        $user = new User();
+        $user->name = 'User';
+        $user->email = 'user@gmail.com';
+        $user->password = bcrypt('aqq');
+        $user->save();
+        $user->roles()->attach(3);
+ 
+// 2 sposob prze wyszukiwanie w bazie
+        
+        $role = Roles::where('name', 'Guest')->first();
+		
+9. aktualizacja bazy
+		
+php artisan migrate:refresh
+
+10 dodanie RolesTableSeeder do pliku DatabaseSeeder		
+
+dodaje seedery
+php artisan db:seed
+
+
+11. tworzymy middleware (warstwa pomiedzy requestem od uzytkownika a kontrolerem - cos co sie ma uruchomic wczesniej niz kontroler - my sprawdzimy czy uzytkownik ma prawo do uzystakania dostepu do konkretnego zasobu)
+php artisan make:middleware CheckRole
+w Middleware\ChceckRole w metodzie handle dopisujemy sprawdzenie wartunkow middleware
+
+----
+public function handle($request, Closure $next)
+    {
+        if ($request->user() === null){
+            return redirect('/login');
+        }        
+        $action = $request->route()->getAction();
+        $roles = isset($action['roles']) ? $action['roles'] : null;
+        
+        return $next($request);
+    }
+------
+
+12 wracamy do routingu i musimy zapiac nasze role w grupe
+
+gdzie okreslamy nazwe funkcji ktora to bedzie w middlewarze odpowiedzialna z wykonanie przed kontrolerem w tym przypadkuy 'middleware' => 'roles',
+
+Route::group([
+	'middleware' => 'roles',
+	'roles' => 'Admin'
+], function() {
+	Route::resource('pages', 'PagesController');
+}
+)
+
+13. W pliku kernel dodajemy informacje o middleware w zaleznosci co chcemy web, api , pojedynczy
+
+'roles' => \App\Http\Middleware\CheckRole::class, --- 'middleware' => 'roles', roles wskazuje na middleware checkrole
+
+
+13 w Modelu User sprawdzamy jaka role pewłni uzytkownik w systemi i stad 2 metody
+
+hasAnyRole
+hasRole
+
+
+
+
